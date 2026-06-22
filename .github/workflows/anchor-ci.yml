@@ -1,0 +1,72 @@
+name: Anchor CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'keygen (run once) or deploy'
+        required: true
+        default: 'deploy'
+        type: choice
+        options: [keygen, deploy]
+      cluster:
+        description: 'Cluster for deploy mode'
+        required: false
+        default: 'devnet'
+        type: choice
+        options: [devnet, mainnet-beta]
+  push:
+    branches: [main]
+
+jobs:
+  keygen:
+    if: github.event.inputs.mode == 'keygen'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      - name: Generate program keypair
+        run: |
+          solana-keygen new --no-bip39-passphrase -s -o program-keypair.json
+          echo "Program ID: $(solana-keygen pubkey program-keypair.json)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: program-keypair
+          path: program-keypair.json
+
+  build-and-deploy:
+    if: github.event.inputs.mode == 'deploy' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      - name: Install Anchor
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+          avm install 0.30.1
+          avm use 0.30.1
+      - name: Restore program keypair
+        run: |
+          mkdir -p target/deploy
+          echo '${{ secrets.SOLANA_PROGRAM_KEYPAIR }}' > target/deploy/chatfi_escrow-keypair.json
+      - name: Build
+        run: anchor build
+      - name: Deploy
+        if: github.event.inputs.mode == 'deploy'
+        run: |
+          mkdir -p ~/.config/solana
+          echo '${{ secrets.SOLANA_DEPLOY_KEYPAIR }}' > ~/.config/solana/id.json
+          solana config set --url https://api.${{ github.event.inputs.cluster }}.solana.com
+          solana program deploy target/deploy/chatfi_escrow.so --program-id target/deploy/chatfi_escrow-keypair.json --keypair ~/.config/solana/id.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatfi-escrow-build
+          path: |
+            target/deploy/*.so
+            target/idl/*.json
