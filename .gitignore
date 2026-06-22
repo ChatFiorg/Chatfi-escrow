@@ -6,3 +6,6 @@ dist
 build
 test-ledger
 .yarn
+program-keypair.json
+deploy-wallet.json
+id.json
