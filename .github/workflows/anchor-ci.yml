@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'keygen (run once) or deploy'
+        description: 'keygen (program ID) | wallet (deploy wallet) | deploy'
         required: true
         default: 'deploy'
         type: choice
-        options: [keygen, deploy]
+        options: [keygen, wallet, deploy]
       cluster:
         description: 'Cluster for deploy mode'
         required: false
@@ -35,6 +35,23 @@ jobs:
         with:
           name: program-keypair
           path: program-keypair.json
+
+  wallet:
+    if: github.event.inputs.mode == 'wallet'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      - name: Generate deploy wallet
+        run: |
+          solana-keygen new --no-bip39-passphrase -s -o deploy-wallet.json
+          echo "Wallet address: $(solana-keygen pubkey deploy-wallet.json)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deploy-wallet
+          path: deploy-wallet.json
 
   build-and-deploy:
     if: github.event.inputs.mode == 'deploy' || github.event_name == 'push'
