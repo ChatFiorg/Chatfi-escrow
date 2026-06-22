@@ -6,10 +6,10 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-chatfi_escrow = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+chatfi_escrow = "HCgMbznCoCusfRdHjdMVtiuxxWB1hgQqV65xyDZv4S4R"
 
 [programs.devnet]
-chatfi_escrow = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+chatfi_escrow = "HCgMbznCoCusfRdHjdMVtiuxxWB1hgQqV65xyDZv4S4R"
 
 [provider]
 cluster = "devnet"

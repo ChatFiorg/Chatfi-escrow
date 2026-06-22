@@ -3,7 +3,7 @@ use anchor_spl::token_interface::{
     self, CloseAccount, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("HCgMbznCoCusfRdHjdMVtiuxxWB1hgQqV65xyDZv4S4R");
 
 #[program]
 pub mod chatfi_escrow {
