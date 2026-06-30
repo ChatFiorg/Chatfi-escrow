@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{
     self, CloseAccount, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
@@ -359,6 +360,12 @@ pub struct FundEscrow<'info> {
 pub struct ReleaseEscrow<'info> {
     #[account(mut)]
     pub seller: Signer<'info>,
+    /// CHECK: validated against escrow.buyer
+    #[account(constraint = buyer.key() == escrow.buyer)]
+    pub buyer: UncheckedAccount<'info>,
+    /// CHECK: validated against config.fee_collector
+    #[account(constraint = fee_collector.key() == config.fee_collector)]
+    pub fee_collector: UncheckedAccount<'info>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(seeds = [b"config"], bump = config.bump)]
     pub config: Account<'info, Config>,
@@ -370,11 +377,25 @@ pub struct ReleaseEscrow<'info> {
     pub escrow: Account<'info, Escrow>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut, token::mint = mint, constraint = buyer_token_account.owner == escrow.buyer)]
+    #[account(
+        init_if_needed,
+        payer = seller,
+        associated_token::mint = mint,
+        associated_token::authority = buyer,
+        associated_token::token_program = token_program,
+    )]
     pub buyer_token_account: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut, token::mint = mint, constraint = fee_token_account.owner == config.fee_collector)]
+    #[account(
+        init_if_needed,
+        payer = seller,
+        associated_token::mint = mint,
+        associated_token::authority = fee_collector,
+        associated_token::token_program = token_program,
+    )]
     pub fee_token_account: InterfaceAccount<'info, TokenAccount>,
     pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -390,9 +411,17 @@ pub struct CancelEscrow<'info> {
     pub escrow: Account<'info, Escrow>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut, token::mint = mint, token::authority = seller)]
+    #[account(
+        init_if_needed,
+        payer = seller,
+        associated_token::mint = mint,
+        associated_token::authority = seller,
+        associated_token::token_program = token_program,
+    )]
     pub seller_token_account: InterfaceAccount<'info, TokenAccount>,
     pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -410,6 +439,12 @@ pub struct RaiseDispute<'info> {
 pub struct ResolveDispute<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
+    /// CHECK: validated against escrow.buyer
+    #[account(constraint = buyer.key() == escrow.buyer)]
+    pub buyer: UncheckedAccount<'info>,
+    /// CHECK: validated against escrow.seller
+    #[account(constraint = seller.key() == escrow.seller)]
+    pub seller: UncheckedAccount<'info>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(seeds = [b"config"], bump = config.bump, has_one = admin)]
     pub config: Account<'info, Config>,
@@ -421,11 +456,25 @@ pub struct ResolveDispute<'info> {
     pub escrow: Account<'info, Escrow>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
     pub vault: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut, token::mint = mint, constraint = buyer_token_account.owner == escrow.buyer)]
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = mint,
+        associated_token::authority = buyer,
+        associated_token::token_program = token_program,
+    )]
     pub buyer_token_account: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut, token::mint = mint, constraint = seller_token_account.owner == escrow.seller)]
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = mint,
+        associated_token::authority = seller,
+        associated_token::token_program = token_program,
+    )]
     pub seller_token_account: InterfaceAccount<'info, TokenAccount>,
     pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
 }
 
 #[error_code]
