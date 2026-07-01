@@ -365,17 +365,17 @@ pub struct ReleaseEscrow<'info> {
     /// CHECK: validated against config.fee_collector
     #[account(constraint = fee_collector.key() == config.fee_collector)]
     pub fee_collector: UncheckedAccount<'info>,
-    pub mint: InterfaceAccount<'info, Mint>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(seeds = [b"config"], bump = config.bump)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(
         mut, has_one = mint, has_one = seller,
         seeds = [b"escrow", escrow.seller.as_ref(), escrow.buyer.as_ref(), &escrow.trade_id.to_le_bytes()],
         bump = escrow.bump
     )]
-    pub escrow: Account<'info, Escrow>,
+    pub escrow: Box<Account<'info, Escrow>>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
-    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
         payer = seller,
@@ -383,7 +383,7 @@ pub struct ReleaseEscrow<'info> {
         associated_token::authority = buyer,
         associated_token::token_program = token_program,
     )]
-    pub buyer_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub buyer_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
         payer = seller,
@@ -391,7 +391,7 @@ pub struct ReleaseEscrow<'info> {
         associated_token::authority = fee_collector,
         associated_token::token_program = token_program,
     )]
-    pub fee_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub fee_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -444,17 +444,17 @@ pub struct ResolveDispute<'info> {
     /// CHECK: validated against escrow.seller
     #[account(constraint = seller.key() == escrow.seller)]
     pub seller: UncheckedAccount<'info>,
-    pub mint: InterfaceAccount<'info, Mint>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(seeds = [b"config"], bump = config.bump, has_one = admin)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(
         mut, has_one = mint,
         seeds = [b"escrow", escrow.seller.as_ref(), escrow.buyer.as_ref(), &escrow.trade_id.to_le_bytes()],
         bump = escrow.bump
     )]
-    pub escrow: Account<'info, Escrow>,
+    pub escrow: Box<Account<'info, Escrow>>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
-    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
         payer = admin,
@@ -462,7 +462,7 @@ pub struct ResolveDispute<'info> {
         associated_token::authority = buyer,
         associated_token::token_program = token_program,
     )]
-    pub buyer_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub buyer_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
         payer = admin,
@@ -470,7 +470,7 @@ pub struct ResolveDispute<'info> {
         associated_token::authority = seller,
         associated_token::token_program = token_program,
     )]
-    pub seller_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub seller_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
