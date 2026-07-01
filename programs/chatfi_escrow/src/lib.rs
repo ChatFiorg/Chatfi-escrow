@@ -267,7 +267,6 @@ impl Config {
 }
 
 #[account]
-#[derive(Clone)]
 pub struct Escrow {
     pub seller: Pubkey,
     pub buyer: Pubkey,
