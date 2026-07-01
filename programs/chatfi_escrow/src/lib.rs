@@ -371,7 +371,8 @@ pub struct ReleaseEscrow<'info> {
     #[account(
         mut, has_one = mint, has_one = seller,
         seeds = [b"escrow", escrow.seller.as_ref(), escrow.buyer.as_ref(), &escrow.trade_id.to_le_bytes()],
-        bump = escrow.bump
+        bump = escrow.bump,
+        close = seller
     )]
     pub escrow: Box<Account<'info, Escrow>>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
@@ -405,7 +406,8 @@ pub struct CancelEscrow<'info> {
     #[account(
         mut, has_one = mint, has_one = seller,
         seeds = [b"escrow", escrow.seller.as_ref(), escrow.buyer.as_ref(), &escrow.trade_id.to_le_bytes()],
-        bump = escrow.bump
+        bump = escrow.bump,
+        close = seller
     )]
     pub escrow: Account<'info, Escrow>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
@@ -442,7 +444,7 @@ pub struct ResolveDispute<'info> {
     #[account(constraint = buyer.key() == escrow.buyer)]
     pub buyer: UncheckedAccount<'info>,
     /// CHECK: validated against escrow.seller
-    #[account(constraint = seller.key() == escrow.seller)]
+    #[account(mut, constraint = seller.key() == escrow.seller)]
     pub seller: UncheckedAccount<'info>,
     pub mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(seeds = [b"config"], bump = config.bump, has_one = admin)]
@@ -450,7 +452,8 @@ pub struct ResolveDispute<'info> {
     #[account(
         mut, has_one = mint,
         seeds = [b"escrow", escrow.seller.as_ref(), escrow.buyer.as_ref(), &escrow.trade_id.to_le_bytes()],
-        bump = escrow.bump
+        bump = escrow.bump,
+        close = seller
     )]
     pub escrow: Box<Account<'info, Escrow>>,
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
