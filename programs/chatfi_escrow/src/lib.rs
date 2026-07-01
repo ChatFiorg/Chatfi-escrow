@@ -6,6 +6,9 @@ use anchor_spl::token_interface::{
 
 declare_id!("HCgMbznCoCusfRdHjdMVtiuxxWB1hgQqV65xyDZv4S4R");
 
+pub const MIN_TIMEOUT_SECONDS: i64 = 15 * 60;
+pub const MAX_TIMEOUT_SECONDS: i64 = 7 * 24 * 60 * 60;
+
 #[program]
 pub mod chatfi_escrow {
     use super::*;
@@ -40,8 +43,18 @@ pub mod chatfi_escrow {
         Ok(())
     }
 
-    pub fn initialize_escrow(ctx: Context<InitializeEscrow>, trade_id: u64, amount: u64) -> Result<()> {
+    pub fn initialize_escrow(
+        ctx: Context<InitializeEscrow>,
+        trade_id: u64,
+        amount: u64,
+        timeout_seconds: i64,
+    ) -> Result<()> {
         require!(amount > 0, EscrowError::InvalidAmount);
+        require!(
+            timeout_seconds >= MIN_TIMEOUT_SECONDS && timeout_seconds <= MAX_TIMEOUT_SECONDS,
+            EscrowError::InvalidTimeout
+        );
+        let now = Clock::get()?.unix_timestamp;
         let escrow = &mut ctx.accounts.escrow;
         escrow.seller = ctx.accounts.seller.key();
         escrow.buyer = ctx.accounts.buyer.key();
@@ -51,6 +64,7 @@ pub mod chatfi_escrow {
         escrow.status = EscrowStatus::Created;
         escrow.bump = ctx.bumps.escrow;
         escrow.vault_bump = ctx.bumps.vault;
+        escrow.expiry = now.checked_add(timeout_seconds).ok_or(EscrowError::InvalidTimeout)?;
         Ok(())
     }
 
@@ -188,6 +202,56 @@ pub mod chatfi_escrow {
         Ok(())
     }
 
+    pub fn reclaim_expired_escrow(ctx: Context<ReclaimExpiredEscrow>) -> Result<()> {
+        let escrow = ctx.accounts.escrow.clone().into_inner();
+        require!(
+            escrow.status == EscrowStatus::Created || escrow.status == EscrowStatus::Funded,
+            EscrowError::InvalidStatus
+        );
+        let now = Clock::get()?.unix_timestamp;
+        require!(now > escrow.expiry, EscrowError::NotExpired);
+
+        let trade_id_bytes = escrow.trade_id.to_le_bytes();
+        let seeds = &[
+            b"escrow".as_ref(),
+            escrow.seller.as_ref(),
+            escrow.buyer.as_ref(),
+            trade_id_bytes.as_ref(),
+            &[escrow.bump],
+        ];
+        let signer = &[&seeds[..]];
+
+        if escrow.status == EscrowStatus::Funded {
+            token_interface::transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    TransferChecked {
+                        from: ctx.accounts.vault.to_account_info(),
+                        mint: ctx.accounts.mint.to_account_info(),
+                        to: ctx.accounts.seller_token_account.to_account_info(),
+                        authority: ctx.accounts.escrow.to_account_info(),
+                    },
+                    signer,
+                ),
+                escrow.amount,
+                ctx.accounts.mint.decimals,
+            )?;
+        }
+
+        token_interface::close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.vault.to_account_info(),
+                destination: ctx.accounts.seller.to_account_info(),
+                authority: ctx.accounts.escrow.to_account_info(),
+            },
+            signer,
+        ))?;
+
+        ctx.accounts.escrow.status = EscrowStatus::Cancelled;
+        Ok(())
+    }
+
     pub fn raise_dispute(ctx: Context<RaiseDispute>) -> Result<()> {
         let escrow = &mut ctx.accounts.escrow;
         require!(escrow.status == EscrowStatus::Funded, EscrowError::InvalidStatus);
@@ -276,9 +340,10 @@ pub struct Escrow {
     pub status: EscrowStatus,
     pub bump: u8,
     pub vault_bump: u8,
+    pub expiry: i64,
 }
 impl Escrow {
-    pub const LEN: usize = 8 + 32 + 32 + 32 + 8 + 8 + 1 + 1 + 1 + 64;
+    pub const LEN: usize = 8 + 32 + 32 + 32 + 8 + 8 + 1 + 1 + 1 + 8 + 56;
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
@@ -309,7 +374,7 @@ pub struct UpdateConfig<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(trade_id: u64, amount: u64)]
+#[instruction(trade_id: u64, amount: u64, timeout_seconds: i64)]
 pub struct InitializeEscrow<'info> {
     #[account(mut)]
     pub seller: Signer<'info>,
@@ -426,6 +491,36 @@ pub struct CancelEscrow<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ReclaimExpiredEscrow<'info> {
+    #[account(mut)]
+    pub caller: Signer<'info>,
+    /// CHECK: validated against escrow.seller
+    #[account(mut, constraint = seller.key() == escrow.seller)]
+    pub seller: UncheckedAccount<'info>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut, has_one = mint,
+        seeds = [b"escrow", escrow.seller.as_ref(), escrow.buyer.as_ref(), &escrow.trade_id.to_le_bytes()],
+        bump = escrow.bump,
+        close = seller
+    )]
+    pub escrow: Account<'info, Escrow>,
+    #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.vault_bump)]
+    pub vault: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        init_if_needed,
+        payer = caller,
+        associated_token::mint = mint,
+        associated_token::authority = seller,
+        associated_token::token_program = token_program,
+    )]
+    pub seller_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct RaiseDispute<'info> {
     pub signer: Signer<'info>,
     #[account(
@@ -489,4 +584,8 @@ pub enum EscrowError {
     Unauthorized,
     #[msg("Fee cannot exceed 10%")]
     FeeTooHigh,
+    #[msg("Timeout must be between 15 minutes and 7 days")]
+    InvalidTimeout,
+    #[msg("Escrow has not yet expired")]
+    NotExpired,
 }
