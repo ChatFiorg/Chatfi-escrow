@@ -30,9 +30,18 @@ describe("chatfi_escrow", () => {
   let configPda: PublicKey;
   let feeCollector: Keypair;
 
-  async function airdrop(pubkey: PublicKey, sol = 1) {
-    const sig = await provider.connection.requestAirdrop(pubkey, sol * 1e9);
-    await provider.connection.confirmTransaction(sig, "confirmed");
+  async function airdrop(pubkey: PublicKey, sol = 0.02) {
+    // Devnet's public faucet is heavily rate-limited and frequently returns
+    // "Internal error" from shared CI IPs, so fund ephemeral test keypairs
+    // by transferring from the already-funded deploy wallet instead.
+    const tx = new anchor.web3.Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: pubkey,
+        lamports: Math.round(sol * anchor.web3.LAMPORTS_PER_SOL),
+      })
+    );
+    await provider.sendAndConfirm(tx);
   }
 
   function deriveEscrow(sellerKey: PublicKey, buyerKey: PublicKey, tradeId: BN) {
