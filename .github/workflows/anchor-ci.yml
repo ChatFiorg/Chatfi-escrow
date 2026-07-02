@@ -102,9 +102,7 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
       - name: Install Anchor
         run: |
-          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-          avm install 0.30.1
-          avm use 0.30.1
+          cargo install anchor-cli --version 0.30.1 --force
       - name: Install JS deps
         run: yarn install --frozen-lockfile || yarn install
       - name: Restore program keypair
