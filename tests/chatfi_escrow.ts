@@ -97,6 +97,16 @@ describe("chatfi_escrow", () => {
     } catch (e: any) {
       if (!String(e).includes("already in use")) throw e;
     }
+
+    // The config PDA can only ever be init'd once, so on repeat devnet runs
+    // it may already hold a fee_collector from a prior run (whose keypair
+    // no longer exists). Force it to match this run's fee_collector via
+    // update_config so downstream constraint checks (`fee_collector.key()
+    // == config.fee_collector`) pass regardless of the PDA's history.
+    await program.methods
+      .updateConfig(null, feeCollector.publicKey, FEE_BPS)
+      .accounts({ admin: admin.publicKey, config: configPda })
+      .rpc();
   });
 
   async function setupTrade(amount = 1_000_000) {
