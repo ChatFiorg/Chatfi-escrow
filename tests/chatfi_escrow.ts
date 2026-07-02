@@ -17,6 +17,15 @@ describe("chatfi_escrow", () => {
   anchor.setProvider(provider);
   const program = anchor.workspace.ChatfiEscrow as Program;
 
+  // Public/free RPC endpoints rate-limit aggressively (devnet's shared node
+  // caps around 100 req/10s per IP). Throttle every write so a ~20-test
+  // suite firing transactions back-to-back doesn't trip 429s.
+  const originalSendAndConfirm = provider.sendAndConfirm.bind(provider);
+  provider.sendAndConfirm = async (tx, signers, opts) => {
+    await new Promise((r) => setTimeout(r, 300));
+    return originalSendAndConfirm(tx, signers, opts);
+  };
+
   const seller = provider.wallet as anchor.Wallet;
   const admin = seller; // config admin == seller/payer wallet for these tests
 
