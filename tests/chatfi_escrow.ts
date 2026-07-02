@@ -7,6 +7,7 @@ import {
   createMint,
   createAccount,
   getAssociatedTokenAddressSync,
+  getOrCreateAssociatedTokenAccount,
   mintTo,
   getAccount,
 } from "@solana/spl-token";
@@ -116,6 +117,21 @@ describe("chatfi_escrow", () => {
       .updateConfig(null, feeCollector.publicKey, FEE_BPS)
       .accounts({ admin: admin.publicKey, config: configPda })
       .rpc();
+
+    // Pre-create the fee collector's ATA once, up front. Every test in this
+    // suite shares the same feeCollector, so its ATA address is identical
+    // across every release_escrow/resolve_dispute call. Letting the program's
+    // own init_if_needed create it on first use risks a race against RPC
+    // propagation lag on repeat calls (a non-idempotent `create` CPI against
+    // an account that already exists fails with "Provided owner is not
+    // allowed"). Creating it once here, robustly, via spl-token's helper
+    // avoids that entirely for the rest of the suite.
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      seller.payer,
+      mint,
+      feeCollector.publicKey
+    );
   });
 
   async function setupTrade(amount = 1_000_000) {
