@@ -117,4 +117,7 @@ jobs:
           echo "Deploy wallet balance:"
           solana balance
       - name: Run devnet test suite
+        env:
+          ANCHOR_PROVIDER_URL: "${{ secrets.HELIUS_DEVNET_RPC_URL != '' && secrets.HELIUS_DEVNET_RPC_URL || 'https://api.devnet.solana.com' }}"
+          ANCHOR_WALLET: /home/runner/.config/solana/id.json
         run: anchor test --skip-local-validator --skip-deploy
