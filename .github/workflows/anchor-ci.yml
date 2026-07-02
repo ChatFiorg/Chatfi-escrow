@@ -115,4 +115,4 @@ jobs:
           echo '${{ secrets.SOLANA_DEPLOY_KEYPAIR }}' > ~/.config/solana/id.json
           solana config set --url https://api.devnet.solana.com --keypair ~/.config/solana/id.json
       - name: Run devnet test suite
-        run: anchor test --skip-local-validator --skip-deploy --skip-build
+        run: anchor test --skip-local-validator --skip-deploy
