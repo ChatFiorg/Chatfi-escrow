@@ -114,5 +114,7 @@ jobs:
           mkdir -p ~/.config/solana
           echo '${{ secrets.SOLANA_DEPLOY_KEYPAIR }}' > ~/.config/solana/id.json
           solana config set --url https://api.devnet.solana.com --keypair ~/.config/solana/id.json
+          echo "Deploy wallet balance:"
+          solana balance
       - name: Run devnet test suite
         run: anchor test --skip-local-validator --skip-deploy
